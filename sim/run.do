@@ -1,3 +1,5 @@
+quit -sim
+if [file exists work] { vdel -lib work -all }
 vlib work
 vlog -f src_tb.list
 vlog +cover=bcesft -f src_dut.list
