@@ -1,0 +1,5 @@
+# Ignore everything inside questa_projects
+questa_projects/*
+
+# But keep .gitkeep
+!questa_projects/.gitkeep
