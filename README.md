@@ -95,36 +95,12 @@ By executing the testbench against the initial design (`FIFO_before.v`), six RTL
 
 | Bug ID | Signal | Issue / Root Cause | Fix Implemented (`FIFO.sv`) |
 | --- | --- | --- | --- |
-| **BUG_01** | `wr_ack` | Not cleared upon active-low asynchronous reset (`!rst_n`), causing stale/undefined states.
-
- | Added explicit reset assignment (`wr_ack <= 0`).
-
- |
-| **BUG_02** | `overflow` | Not cleared during reset condition.
-
- | Added explicit reset assignment (`overflow <= 0`).
-
- |
-| **BUG_03** | `overflow` | Stays asserted continuously after an overflow event even if subsequent valid writes occur.
-
- | Added `overflow <= 0` inside successful write branch (`count < FIFO_DEPTH`).
-
- |
-| **BUG_04** | `underflow` | Implemented as combinational logic (`assign underflow = empty && rd_en`), creating potential glitches and timing mismatches.
-
- | Converted into a sequential output driven inside the `always_ff` clock block.
-
- |
-| **BUG_05** | `count` | Internal count failed to update correctly when `{wr_en, rd_en} == 2'b11` occurred on empty or full states.
-
- | Added explicit handling for concurrent write and read operations based on FIFO state.
-
- |
-| **BUG_06** | `almostfull` | Calculated incorrectly as `count == FIFO_DEPTH - 2` (asserted at 6 elements instead of 7).
-
- | Corrected threshold condition to `count == FIFO_DEPTH - 1`.
-
- |
+| **BUG_01** | `wr_ack` | Not cleared upon active-low asynchronous reset (`!rst_n`), causing stale/undefined states.| Added explicit reset assignment (`wr_ack <= 0`).|
+| **BUG_02** | `overflow` | Not cleared during reset condition.| Added explicit reset assignment (`overflow <= 0`).|
+| **BUG_03** | `overflow` | Stays asserted continuously after an overflow event even if subsequent valid writes occur.| Added `overflow <= 0` inside successful write branch (`count < FIFO_DEPTH`).|
+| **BUG_04** | `underflow` | Implemented as combinational logic (`assign underflow = empty && rd_en`), creating potential glitches and timing mismatches.| Converted into a sequential output driven inside the `always_ff` clock block.|
+| **BUG_05** | `count` | Internal count failed to update correctly when `{wr_en, rd_en} == 2'b11` occurred on empty or full states.| Added explicit handling for concurrent write and read operations based on FIFO state.|
+| **BUG_06** | `almostfull` | Calculated incorrectly as `count == FIFO_DEPTH - 2` (asserted at 6 elements instead of 7).| Corrected threshold condition to `count == FIFO_DEPTH - 1`.|
 
 ---
 
@@ -164,11 +140,5 @@ cd sim
 3. Run the DO script:
 ```tcl
 do run.do
-
-```
-
-
-
-```
 
 ```
