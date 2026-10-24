@@ -1,145 +1,139 @@
 # UVM Verification of a Synchronous FIFO
 
-Comprehensive UVM-based verification environment for a Synchronous FIFO design featuring 100% functional, code, and assertion coverage with SVA properties, coverage collector, scoreboard, and custom sequences.
+A UVM verification environment for a synchronous FIFO (`FIFO_WIDTH = 16`, `FIFO_DEPTH = 8`). It drives directed and constrained-random stimulus, checks every output against a reference model, collects functional coverage, and uses bound SystemVerilog assertions. Running it against the original design exposes six RTL bugs; against the fixed design it reaches 100% code, functional and assertion coverage with zero failures.
 
-## Project Overview
-This repository presents a robust **UVM (Universal Verification Methodology)** verification environment built to validate a **Synchronous FIFO** design (`FIFO_WIDTH = 16`, `FIFO_DEPTH = 8`)[cite: 47]. 
+The full project report (verification plan, waveforms, coverage reports, bug report with before/after code) is in [`UVM_Verification_of_a_Synchronous_FIFO.pdf`](UVM_Verification_of_a_Synchronous_FIFO.pdf).
 
-The primary goal of this project was to establish a fully automated Verification Environment capable of driving constrained-random and directed scenarios, detecting RTL bugs, validating internal design assertions, and achieving **100% Functional, Code, and Assertion Coverage**[cite: 47, 57, 59].
+## Highlights
 
----
+- 5 UVM sequences, 50,003 items driven in total
+- Scoreboard with a cycle-accurate reference model that checks all 8 outputs on every item
+- Functional coverage: 9 coverpoints and 7 crosses (68 bins)
+- 11 assertions bound into the DUT: 7 clocked properties and 4 deferred final assertions for the combinational flags
+- 6 RTL bugs found and fixed
 
-## Verification Architecture & Data Flow
-
-The verification environment is designed according to UVM guidelines and is structured as follows:
-
-```text
-                                +---------------------------------------------------+
-                                |                    FIFO_test                      |
-                                |  +---------------------------------------------+  |
-                                |  |                  FIFO_env                   |  |
-                                |  |  +------------------+  +-----------------+  |  |
-                                |  |  | FIFO_scoreboard  |  |  FIFO_coverage  |  |  |
-                                |  |  +--------^---------+  +--------^--------+  |  |
-                                |  |           | (Analysis)          | (Analysis)|  |
-                                |  |  +--------+---------------------+--------+  |  |
-                                |  |  |                FIFO_agent             |  |  |
-                                |  |  |  +--------------+   +--------------+  |  |  |
-                                |  |  |  | FIFO_monitor |   | FIFO_driver  |  |  |  |
-                                |  |  |  +-------^------+   +-------+------+  |  |  |
-                                |  |  +----------|------------------|---------+  |  |
-                                |  +-------------|------------------|------------+  |
-                                +----------------|------------------|---------------+
-                                                 | (Virtual IF)     | (Virtual IF)
-                                +----------------v------------------v---------------+
-                                |                     FIFO_if                       |
-                                +------------------------+--------------------------+
-                                                         |
-                                +------------------------v--------------------------+
-                                |                    FIFO (DUT)                     |
-                                |              (Bound to FIFO_sva)                  |
-                                +---------------------------------------------------+
+## Repository structure
 
 ```
+.
+├── rtl/
+│   ├── FIFO.sv            # fixed design
+│   ├── FIFO_before.v      # original design with the 6 bugs
+│   └── FIFO_sva.sv        # assertions, bound to the DUT in top.sv
+├── tb/
+│   ├── top.sv             # clock, interface, DUT, bind, run_test
+│   ├── FIFO_if.sv         # interface
+│   ├── shared_pkg.sv      # parameters
+│   ├── FIFO_config.sv     # configuration object (holds the virtual interface)
+│   ├── FIFO_seq_item.sv   # transaction with constraints
+│   ├── FIFO_seq.sv        # sequencer
+│   ├── FIFO_driver.sv
+│   ├── FIFO_monitor.sv
+│   ├── FIFO_agent.sv
+│   ├── FIFO_scoreboard.sv
+│   ├── FIFO_coverage.sv
+│   ├── FIFO_env.sv
+│   ├── FIFO_test.sv
+│   └── sequences/         # reset, write_only, read_only, write_read, rand
+├── sim/
+│   ├── run.do             # compile, simulate, coverage report
+│   ├── src_tb.list        # testbench compile order
+│   └── src_dut.list       # DUT, assertions and top
+├── UVM_Verification_of_a_Synchronous_FIFO.pdf
+└── LICENSE
+```
 
-### Environment Components
+## Testbench architecture
 
-* **Top Module (`top.sv`)**: Generates clock, instantiates `FIFO_if` and `DUT`, binds SystemVerilog Assertions (`FIFO_sva`), sets the virtual interface in `uvm_config_db`, and starts the UVM test execution.
+```
+top
+├── clock generator (10 ns period)
+├── FIFO_if
+├── FIFO (DUT)  +  FIFO_sva (bound with `bind`)
+└── run_test("FIFO_test")
 
+FIFO_test                        starts the sequences below on the agent sequencer
+└── FIFO_env
+    ├── FIFO_agent
+    │   ├── FIFO_seq (sequencer) ──► FIFO_driver ──► FIFO_if      drives rst_n, wr_en, rd_en, data_in
+    │   └── FIFO_monitor ◄── FIFO_if                              samples at posedge clk + 1 ns
+    │            └── analysis port ──┬──► FIFO_scoreboard (reference model)
+    │                                └──► FIFO_coverage   (covergroup)
+    └── FIFO_config                  holds the virtual interface (config_db key "CFG")
+```
 
-* **UVM Test (`FIFO_test`)**: Manages simulation phases, configures `FIFO_config`, and sequentially executes 5 distinct stimulus sequences.
+| Component | Role |
+|---|---|
+| `top` | Generates the clock, instantiates `FIFO_if` and the DUT, binds `FIFO_sva`, stores the virtual interface in `uvm_config_db` and calls `run_test`. |
+| `FIFO_test` | Builds the environment and starts the five sequences one after the other. |
+| `FIFO_seq_item` | Randomized inputs (`rst_n`, `wr_en`, `rd_en`, `data_in`) and the observed outputs. Constraints: `rst_n` low 3% of the time, `wr_en` high 70%, `rd_en` high 30%. |
+| `FIFO_driver` | Drives only the DUT inputs and waits for the next falling clock edge. |
+| `FIFO_monitor` | Waits for a rising edge plus 1 ns, so the DUT outputs have settled and the driver has not yet applied the next inputs, then samples all signals. |
+| `FIFO_scoreboard` | Reference model (memory, pointers, count). Compares `data_out`, `wr_ack`, `overflow`, `underflow`, `full`, `empty`, `almostfull` and `almostempty` with `!==`. |
+| `FIFO_coverage` | Covergroup with 9 coverpoints and 7 crosses. `cp_full_pre` and `cp_empty_pre` sample the FIFO state before each transaction. |
+| `FIFO_sva` | Clocked properties for reset, `wr_ack`, `overflow`, `underflow`, pointer wraparound and pointer limits. The combinational flags are checked in an `always_comb` block with `assert final`. |
 
+## Sequences
 
-* **Sequencer & Driver (`FIFO_seq` & `FIFO_driver`)**: The driver pulls items from the sequencer and drives input signals (`rst_n`, `wr_en`, `rd_en`, `data_in`) onto the interface precisely at `negedge clk` to avoid setup/hold race conditions.
+| Sequence | Items | Stimulus |
+|---|---|---|
+| `FIFO_reset_seq` | 3 | `rst_n = 0` for several clock edges |
+| `FIFO_main_write_only_seq` | 10,000 | `wr_en = 1`, `rd_en = 0` (fills the FIFO, reaches `almostfull`, `full`, `overflow`) |
+| `FIFO_main_read_only_seq` | 10,000 | `wr_en = 0`, `rd_en = 1` (drains the FIFO, reaches `almostempty`, `empty`, `underflow`) |
+| `FIFO_main_write_read_seq` | 10,000 | `wr_en = 1`, `rd_en = 1` (simultaneous read and write) |
+| `FIFO_main_rand_seq` | 20,000 | All inputs randomized with the item constraints |
 
+Only `wr_en` and `rd_en` are forced in the directed sequences. `rst_n` still follows the item constraint, so a random reset (about 3% of the items) can occur in every sequence.
 
-* **Monitor (`FIFO_monitor`)**: Samples interface signals after a 1 ns delay from `posedge clk` to ensure stable responses, encapsulates them into response transaction items, and broadcasts them via analysis ports.
+## RTL bugs found and fixed
 
+The testbench was run against `rtl/FIFO_before.v` (original) and `rtl/FIFO.sv` (fixed).
 
-* **Scoreboard (`FIFO_scoreboard`)**: Incorporates an internal cycle-accurate reference model (`ref_model`) to predict outputs (`data_out`, status flags, error flags) and performs real-time comparison with DUT responses.
+| Bug | Signal | Problem | Fix |
+|---|---|---|---|
+| BUG_01 | `wr_ack` | Not cleared by reset | `wr_ack <= 0` in the reset branch |
+| BUG_02 | `overflow` | Not cleared by reset | `overflow <= 0` in the reset branch |
+| BUG_03 | `overflow` | Stayed high after a later accepted write | `overflow <= 0` in the accepted-write branch |
+| BUG_04 | `underflow` | Combinational assign (`empty && rd_en`), not a registered output | Registered in the clocked read block, with reset |
+| BUG_05 | `count` | Not updated when `wr_en` and `rd_en` are both high | Added the `2'b11` case: +1 when empty, -1 when full, unchanged otherwise |
+| BUG_06 | `almostfull` | Compared `count` with `FIFO_DEPTH-2` | Compare with `FIFO_DEPTH-1` |
 
+Against the original design the scoreboard reports 24,608 failed transactions out of 50,002, and the assertions `a_afull` (BUG_06) and `underflow_propert` (BUG_04) fail. Before and after code for each bug is in the report.
 
-* **Coverage Collector (`FIFO_coverage`)**: Observes transactions to sample 9 coverpoints and 7 cross-coverage bins.
+## Results (fixed design)
 
+| Metric | Result |
+|---|---|
+| Code coverage (DUT) | Branch 26/26, condition 16/16, statement 29/29, toggle 106/106 (100%) |
+| Functional coverage | 68/68 bins (100%) |
+| Assertions | 11/11 pass, 0 failures, all cover directives hit |
+| Scoreboard | 50,002 successful, 0 failed |
+| UVM report | 0 `UVM_ERROR`, 0 `UVM_FATAL` |
 
-* **Assertions (`FIFO_sva`)**: Bound inside the DUT to continuously monitor flag relationships (using combinational deferred final assertions) and clocked pointer boundaries/wraparounds.
+The sequences drive 50,003 items. The scoreboard checks 50,002 of them because the first reset item is applied before the monitor's first sample.
 
+## How to run
 
+Requirements: QuestaSim (tested with 2021.1 and its built-in UVM 1.1d).
 
----
-
-## Stimulus Strategy & Sequences
-
-The testbench executes a total of **50,003 items** across five specialized sequence phases:
-
-1. **`FIFO_reset_seq`** (3 items): Applies active-low reset for multiple cycles to clear internal pointers, counter, and registered flags.
-
-
-2. **`FIFO_main_write_only_seq`** (10,000 items): Drives continuous write operations (`wr_en = 1`, `rd_en = 0`) to fill the FIFO, hitting `almostfull`, `full`, and triggering `overflow`.
-
-
-3. **`FIFO_main_read_only_seq`** (10,000 items): Drains the FIFO (`wr_en = 0`, `rd_en = 1`) to hit `almostempty`, `empty`, and triggering `underflow`.
-
-
-4. **`FIFO_main_write_read_seq`** (10,000 items): Executes concurrent write and read requests (`wr_en = 1`, `rd_en = 1`) to test simultaneous access boundaries.
-
-
-5. **`FIFO_main_rand_seq`** (20,000 items): Fully randomized constrained stimulus (70% write probability, 30% read probability, and random resets) ensuring stress testing under massive random traffic.
-
-
-
----
-
-## RTL Bugs Detected and Resolved
-
-By executing the testbench against the initial design (`FIFO_before.v`), six RTL bugs were identified and successfully corrected in the final design (`FIFO.sv`):
-
-| Bug ID | Signal | Issue / Root Cause | Fix Implemented (`FIFO.sv`) |
-| --- | --- | --- | --- |
-| **BUG_01** | `wr_ack` | Not cleared upon active-low asynchronous reset (`!rst_n`), causing stale/undefined states.| Added explicit reset assignment (`wr_ack <= 0`).|
-| **BUG_02** | `overflow` | Not cleared during reset condition.| Added explicit reset assignment (`overflow <= 0`).|
-| **BUG_03** | `overflow` | Stays asserted continuously after an overflow event even if subsequent valid writes occur.| Added `overflow <= 0` inside successful write branch (`count < FIFO_DEPTH`).|
-| **BUG_04** | `underflow` | Implemented as combinational logic (`assign underflow = empty && rd_en`), creating potential glitches and timing mismatches.| Converted into a sequential output driven inside the `always_ff` clock block.|
-| **BUG_05** | `count` | Internal count failed to update correctly when `{wr_en, rd_en} == 2'b11` occurred on empty or full states.| Added explicit handling for concurrent write and read operations based on FIFO state.|
-| **BUG_06** | `almostfull` | Calculated incorrectly as `count == FIFO_DEPTH - 2` (asserted at 6 elements instead of 7).| Corrected threshold condition to `count == FIFO_DEPTH - 1`.|
-
----
-
-## Verification Results & Metrics
-
-All tests passed cleanly with zero scoreboard comparison mismatches and zero UVM errors.
-
-### Coverage Summary
-
-* **Code Coverage (DUT)**: **100.00%** (Branch, Condition, Statement, Toggle).
-
-
-* **Functional Coverage**: **100.00%** (68 / 68 covergroup bins hit).
-
-
-* **Assertion Coverage (SVA)**: **100.00%** (11 / 11 properties covered with zero failures).
-
-
-* **Scoreboard Results**: **50,002 / 50,002** successful transaction checks (0 failures).
-
-
-
----
-
-## How to Run the Simulation
-
-1. Open **QuestaSim / ModelSim**.
-
-
-2. Navigate to the `sim/` folder:
-```bash
+```
 cd sim
-
+vsim -do run.do        # or: open QuestaSim, cd to sim/, then: do run.do
 ```
 
+`run.do` compiles the testbench and the design with coverage enabled (`+cover=bcesft`), runs the simulation, saves `FIFO_cov.ucdb` and writes `coverage_rpt.txt`.
 
-3. Run the DO script:
-```tcl
-do run.do
+Expected end of the transcript:
 
 ```
+UVM_INFO ... [report_phase] Total successful transactions: 50002
+UVM_INFO ... [report_phase] Total failed transactions: 0
+```
+
+### Reproduce the bugs
+
+In `sim/src_dut.list` replace `../rtl/FIFO.sv` with `../rtl/FIFO_before.v` and run `do run.do` again. The transcript then shows the failing assertions and the scoreboard errors. Restore the original line afterwards.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
