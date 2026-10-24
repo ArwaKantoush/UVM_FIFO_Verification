@@ -36,7 +36,7 @@ The full project report (verification plan, waveforms, coverage reports, bug rep
 │   ├── FIFO_test.sv
 │   └── sequences/            # reset, write_only, read_only, write_read, rand
 ├── sim/
-│   ├── coverage_rpt.txt  # coverage report
+│   ├── coverage_rpt.txt      # coverage report
 │   ├── run.do                # compile, simulate, coverage report
 │   ├── src_tb.list           # testbench compile order
 │   └── src_dut.list          # DUT, assertions and top
