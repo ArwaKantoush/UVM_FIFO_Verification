@@ -17,16 +17,16 @@ The full project report (verification plan, waveforms, coverage reports, bug rep
 ```
 .
 ├── rtl/
-│   ├── FIFO.sv            # fixed design
-│   ├── FIFO_before.v      # original design with the 6 bugs
-│   └── FIFO_sva.sv        # assertions, bound to the DUT in top.sv
+│   ├── FIFO.sv               # fixed design
+│   ├── FIFO_before.v         # original design with the 6 bugs
+│   └── FIFO_sva.sv           # assertions, bound to the DUT in top.sv
 ├── tb/
-│   ├── top.sv             # clock, interface, DUT, bind, run_test
-│   ├── FIFO_if.sv         # interface
-│   ├── shared_pkg.sv      # parameters
-│   ├── FIFO_config.sv     # configuration object (holds the virtual interface)
-│   ├── FIFO_seq_item.sv   # transaction with constraints
-│   ├── FIFO_seq.sv        # sequencer
+│   ├── top.sv                # clock, interface, DUT, bind, run_test
+│   ├── FIFO_if.sv            # interface
+│   ├── shared_pkg.sv         # parameters
+│   ├── FIFO_config.sv        # configuration object (holds the virtual interface)
+│   ├── FIFO_seq_item.sv      # transaction with constraints
+│   ├── FIFO_seq.sv           # sequencer
 │   ├── FIFO_driver.sv
 │   ├── FIFO_monitor.sv
 │   ├── FIFO_agent.sv
@@ -34,11 +34,12 @@ The full project report (verification plan, waveforms, coverage reports, bug rep
 │   ├── FIFO_coverage.sv
 │   ├── FIFO_env.sv
 │   ├── FIFO_test.sv
-│   └── sequences/         # reset, write_only, read_only, write_read, rand
+│   └── sequences/            # reset, write_only, read_only, write_read, rand
 ├── sim/
-│   ├── run.do             # compile, simulate, coverage report
-│   ├── src_tb.list        # testbench compile order
-│   └── src_dut.list       # DUT, assertions and top
+│   ├── coverage_rpt.txt  # coverage report
+│   ├── run.do                # compile, simulate, coverage report
+│   ├── src_tb.list           # testbench compile order
+│   └── src_dut.list          # DUT, assertions and top
 ├── UVM_Verification_of_a_Synchronous_FIFO.pdf
 └── LICENSE
 ```
